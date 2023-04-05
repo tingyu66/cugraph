@@ -24,6 +24,7 @@ torch = import_optional("torch")
 nn = import_optional("torch.nn")
 ops_torch = import_optional("pylibcugraphops.pytorch")
 
+import nvtx
 
 class SAGEConv(BaseConv):
     r"""An accelerated GraphSAGE layer from `Inductive Representation Learning
@@ -122,7 +123,8 @@ class SAGEConv(BaseConv):
         torch.Tensor
             Output node features. Shape: :math:`(|V|, D_{out})`.
         """
-        offsets, indices, _ = g.adj_sparse("csc")
+        with nvtx.annotate("to_csc", color="red"):
+            offsets, indices, _ = g.adj_sparse("csc")
 
         if g.is_block:
             if max_in_degree is None:
@@ -142,6 +144,8 @@ class SAGEConv(BaseConv):
         h = ops_torch.operators.agg_concat_n2n(feat, _graph, self.aggr)[
             : g.num_dst_nodes()
         ]
-        h = self.linear(h)
+
+        with nvtx.annotate("dense", color="yellow"):
+            h = self.linear(h)
 
         return h
